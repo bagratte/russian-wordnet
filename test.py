@@ -44,7 +44,13 @@ class TestRuWordNetLMF(unittest.TestCase):
 
     def test_sense_count_matches_ruwordnet(self):
         ruwn = ruwordnet.RuWordNet()
-        self.assertEqual(len(wn.senses()), len(ruwn.senses))
+        seen = set()
+        unique_senses = 0
+        for s in ruwn.senses:
+            if s.lemma and s.synset_id and (s.lemma, s.synset_id) not in seen:
+                seen.add((s.lemma, s.synset_id))
+                unique_senses += 1
+        self.assertEqual(len(wn.senses()), unique_senses)
 
     def test_ili_count_matches_ruwordnet(self):
         ruwn = ruwordnet.RuWordNet()

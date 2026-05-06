@@ -66,6 +66,8 @@ def build_synset_relations(synset):
     rels = []
     for attr, rel_type in SYNSET_RELATIONS:
         for target in getattr(synset, attr):
+            if target.id == synset.id:
+                continue
             key = (target.id, rel_type)
             if key not in seen:
                 seen.add(key)
@@ -92,10 +94,16 @@ def build_lmf(ruwn, ili_map):
             if s.synset and s.synset.part_of_speech in POS_MAP:
                 pos = POS_MAP[s.synset.part_of_speech]
                 break
+        seen_synsets = set()
+        deduped = []
+        for s in senses:
+            if s.synset_id not in seen_synsets:
+                seen_synsets.add(s.synset_id)
+                deduped.append(s)
         entries.append({
             'id': f'ruwn-le-{i}',
             'lemma': {'writtenForm': lemma, 'partOfSpeech': pos},
-            'senses': [{'id': s.id, 'synset': s.synset_id} for s in senses],
+            'senses': [{'id': s.id, 'synset': s.synset_id} for s in deduped],
         })
         progress(i, len(lemma_items), 'entries')
 
