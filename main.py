@@ -4,6 +4,7 @@ import sys
 from collections import defaultdict
 
 import ruwordnet
+import wn
 from wn import lmf
 
 
@@ -44,6 +45,22 @@ SYNSET_RELATIONS = [
 ]
 
 
+def build_ili_map():
+    prefix = 'omw-en-'
+    return {
+        s.id[len(prefix):]: s.ili
+        for s in wn.synsets(lexicon='omw-en:1.4')
+        if s.ili
+    }
+
+
+def resolve_ili(synset, ili_map):
+    if not synset.ili:
+        return 'in'
+    # Use first ILI link; for synsets with multiple links WN-LMF supports only one
+    return ili_map.get(synset.ili[0].id, 'in')
+
+
 def build_synset_relations(synset):
     seen = set()
     rels = []
@@ -56,7 +73,7 @@ def build_synset_relations(synset):
     return rels
 
 
-def build_lmf(ruwn):
+def build_lmf(ruwn, ili_map):
     # One LexicalEntry per unique lemma; each Sense within it points at a synset
     all_senses = ruwn.senses
     print(f'Building entries from {len(all_senses)} senses...')
@@ -86,8 +103,7 @@ def build_lmf(ruwn):
     print(f'Building {len(all_synsets)} synsets...')
     synsets = []
     for i, synset in enumerate(all_synsets, 1):
-        # Use PWN synset ID as ILI when available, otherwise mark as not-yet-assigned
-        ili = synset.ili[0].id if synset.ili else 'in'
+        ili = resolve_ili(synset, ili_map)
         entry = {
             'id': synset.id,
             'ili': ili,
@@ -117,7 +133,9 @@ def build_lmf(ruwn):
 
 print('Loading RuWordNet...')
 ruwn = ruwordnet.RuWordNet()
-resource = build_lmf(ruwn)
+print('Building ILI map from omw-en:1.4...')
+ili_map = build_ili_map()
+resource = build_lmf(ruwn, ili_map)
 
 print('Writing russian-wordnet-2021.xml...')
 lmf.dump(resource, 'russian-wordnet-2021.xml')

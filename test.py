@@ -46,6 +46,12 @@ class TestRuWordNetLMF(unittest.TestCase):
         ruwn = ruwordnet.RuWordNet()
         self.assertEqual(len(wn.senses()), len(ruwn.senses))
 
+    def test_ili_count_matches_ruwordnet(self):
+        ruwn = ruwordnet.RuWordNet()
+        wn_with_ili = sum(1 for s in wn.synsets() if s.ili is not None)
+        ruwn_with_ili = sum(1 for s in ruwn.synsets if s.ili)
+        self.assertEqual(wn_with_ili, ruwn_with_ili)
+
     def test_no_validation_errors(self):
         resource = wn.lmf.load(XML_FILE, progress_handler=None)
         lex = resource['lexicons'][0]
