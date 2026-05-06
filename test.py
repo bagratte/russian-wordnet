@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 
@@ -40,7 +41,9 @@ class TestRuWordNetLMF(unittest.TestCase):
 
     def test_synset_count_matches_ruwordnet(self):
         ruwn = ruwordnet.RuWordNet()
-        self.assertEqual(len(wn.synsets()), len(ruwn.synsets))
+        count = len(wn.synsets())
+        print(f'\n  synsets: {count}', file=sys.stderr)
+        self.assertEqual(count, len(ruwn.synsets))
 
     def test_sense_count_matches_ruwordnet(self):
         ruwn = ruwordnet.RuWordNet()
@@ -50,12 +53,15 @@ class TestRuWordNetLMF(unittest.TestCase):
             if s.lemma and s.synset_id and (s.lemma, s.synset_id) not in seen:
                 seen.add((s.lemma, s.synset_id))
                 unique_senses += 1
-        self.assertEqual(len(wn.senses()), unique_senses)
+        count = len(wn.senses())
+        print(f'\n  senses (deduplicated): {count}', file=sys.stderr)
+        self.assertEqual(count, unique_senses)
 
     def test_ili_count_matches_ruwordnet(self):
         ruwn = ruwordnet.RuWordNet()
         wn_with_ili = sum(1 for s in wn.synsets() if s.ili is not None)
         ruwn_with_ili = sum(1 for s in ruwn.synsets if s.ili)
+        print(f'\n  synsets with ILI: {wn_with_ili}', file=sys.stderr)
         self.assertEqual(wn_with_ili, ruwn_with_ili)
 
     def test_no_validation_errors(self):
@@ -64,7 +70,7 @@ class TestRuWordNetLMF(unittest.TestCase):
         report = wn.validate.validate(lex, select=['E', 'W'], progress_handler=None)
         for code, check in report.items():
             if check['items']:
-                print(f'{code} ({check["message"]}): {len(check["items"])} issue(s)')
+                print(f'\n{code} ({check["message"]}): {len(check["items"])} issue(s)', file=sys.stderr)
         errors = {code: check for code, check in report.items() if check['items'] and code.startswith('E')}
         self.assertFalse(errors, errors)
 

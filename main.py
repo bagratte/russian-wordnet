@@ -5,6 +5,7 @@ from collections import defaultdict
 
 import ruwordnet
 import wn
+from sqlalchemy import select
 from wn import lmf
 
 
@@ -54,24 +55,68 @@ def build_ili_map():
     }
 
 
-def resolve_ili(synset, ili_map):
-    if not synset.ili:
+def load_synset_bulk_data(session):
+    """Bulk-load every relation table in one query each, avoiding N+1 lazy loads."""
+    from ruwordnet.models import (
+        hypernymy_table, domains_table, meronymy_table, instances_table,
+        entailment_table, cause_table, pos_synonymy_table, antonymy_table,
+        related_table, ili_table,
+    )
+
+    # (attr_name, from_col, to_col) — matches SYNSET_RELATIONS attribute names
+    SPECS = [
+        ('hypernyms',    hypernymy_table.c.hyponym_id,     hypernymy_table.c.hypernym_id),
+        ('hyponyms',     hypernymy_table.c.hypernym_id,    hypernymy_table.c.hyponym_id),
+        ('holonyms',     meronymy_table.c.meronym_id,      meronymy_table.c.holonym_id),
+        ('meronyms',     meronymy_table.c.holonym_id,      meronymy_table.c.meronym_id),
+        ('domains',      domains_table.c.domain_item_id,   domains_table.c.domain_id),
+        ('domain_items', domains_table.c.domain_id,        domains_table.c.domain_item_id),
+        ('instances',    instances_table.c.class_id,       instances_table.c.instance_id),
+        ('classes',      instances_table.c.instance_id,    instances_table.c.class_id),
+        ('causes',       cause_table.c.effect_id,          cause_table.c.cause_id),
+        ('effects',      cause_table.c.cause_id,           cause_table.c.effect_id),
+        ('premises',     entailment_table.c.conclusion_id, entailment_table.c.premise_id),
+        ('conclusions',  entailment_table.c.premise_id,    entailment_table.c.conclusion_id),
+        ('pos_synonyms', pos_synonymy_table.c.right_id,    pos_synonymy_table.c.left_id),
+        ('antonyms',     antonymy_table.c.right_id,        antonymy_table.c.left_id),
+        ('related',      related_table.c.right_id,         related_table.c.left_id),
+    ]
+
+    rel_dicts = {}
+    for attr, from_col, to_col in SPECS:
+        d = defaultdict(list)
+        for from_id, to_id in session.execute(select(from_col, to_col)):
+            d[from_id].append(to_id)
+        rel_dicts[attr] = d
+
+    # ILI: ruwn synset_id -> first linked wn_synset id
+    ili_d = {}
+    for ruwn_id, wn_id in session.execute(select(ili_table.c.ruwn_id, ili_table.c.wn_id)):
+        if ruwn_id not in ili_d:
+            ili_d[ruwn_id] = wn_id
+
+    return rel_dicts, ili_d
+
+
+def resolve_ili(synset_id, ili_d, ili_map):
+    wn_id = ili_d.get(synset_id)
+    if not wn_id:
         return 'in'
-    # Use first ILI link; for synsets with multiple links WN-LMF supports only one
-    return ili_map.get(synset.ili[0].id, 'in')
+    # wn_id is a bare offset like "02084071-n"; strip the "omw-en-" prefix already done in ili_map
+    return ili_map.get(wn_id, 'in')
 
 
-def build_synset_relations(synset):
+def build_synset_relations(synset_id, rel_dicts):
     seen = set()
     rels = []
     for attr, rel_type in SYNSET_RELATIONS:
-        for target in getattr(synset, attr):
-            if target.id == synset.id:
+        for target_id in rel_dicts[attr].get(synset_id, ()):
+            if target_id == synset_id:
                 continue
-            key = (target.id, rel_type)
+            key = (target_id, rel_type)
             if key not in seen:
                 seen.add(key)
-                rels.append({'target': target.id, 'relType': rel_type})
+                rels.append({'target': target_id, 'relType': rel_type})
     return rels
 
 
@@ -85,15 +130,18 @@ def build_lmf(ruwn, ili_map):
             lemma_to_senses[sense.lemma].append(sense)
         progress(i, len(all_senses), 'senses')
 
+    all_synsets = ruwn.synsets
+    # Build synset_id -> POS lookup to avoid lazy-loading s.synset in the entries loop
+    synset_pos = {s.id: POS_MAP.get(s.part_of_speech, 'n') for s in all_synsets}
+
     entries = []
     lemma_items = list(lemma_to_senses.items())
     print(f'Building {len(lemma_items)} lexical entries...')
     for i, (lemma, senses) in enumerate(lemma_items, 1):
-        pos = 'n'
-        for s in senses:
-            if s.synset and s.synset.part_of_speech in POS_MAP:
-                pos = POS_MAP[s.synset.part_of_speech]
-                break
+        pos = next(
+            (synset_pos[s.synset_id] for s in senses if s.synset_id in synset_pos),
+            'n',
+        )
         seen_synsets = set()
         deduped = []
         for s in senses:
@@ -107,16 +155,18 @@ def build_lmf(ruwn, ili_map):
         })
         progress(i, len(lemma_items), 'entries')
 
-    all_synsets = ruwn.synsets
+    print(f'Bulk-loading synset relations...')
+    rel_dicts, ili_d = load_synset_bulk_data(ruwn.session)
+
     print(f'Building {len(all_synsets)} synsets...')
     synsets = []
     for i, synset in enumerate(all_synsets, 1):
-        ili = resolve_ili(synset, ili_map)
+        ili = resolve_ili(synset.id, ili_d, ili_map)
         entry = {
             'id': synset.id,
             'ili': ili,
             'partOfSpeech': POS_MAP.get(synset.part_of_speech, 'n'),
-            'relations': build_synset_relations(synset),
+            'relations': build_synset_relations(synset.id, rel_dicts),
         }
         if synset.definition:
             entry['definitions'] = [{'text': synset.definition}]
