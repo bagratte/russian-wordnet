@@ -201,12 +201,12 @@ def build_lmf(ruwn, ili_map, wn_proper):
         'lmf_version': '1.1',
         'lexicons': [{
             'id': 'ruwn',
-            'label': 'RuWordNet',
+            'label': 'Russian Wordnet',
             'language': 'ru',
             'email': 'bagrat@stokhastik.net',
             'url': 'https://github.com/bagratte/russian-wordnet',
             'license': 'https://creativecommons.org/licenses/by/4.0/',
-            'version': '1.0',
+            'version': '0.1',
             'entries': entries,
             'synsets': synsets,
         }],
@@ -219,6 +219,6 @@ print('Building ILI map from omw-en:1.4...')
 ili_map, wn_proper = build_ili_map()
 resource = build_lmf(ruwn, ili_map, wn_proper)
 
-print('Writing russian-wordnet-1.0.xml...')
-lmf.dump(resource, 'russian-wordnet-1.0.xml')
+print('Writing russian-wordnet-0.1.xml...')
+lmf.dump(resource, 'russian-wordnet-0.1.xml')
 print('Done.')
