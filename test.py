@@ -11,7 +11,7 @@ import wn
 import wn.lmf
 import wn.validate
 
-XML_FILE = 'russian-wordnet-2021.xml'
+XML_FILE = 'russian-wordnet-1.0.xml'
 
 
 @unittest.skipUnless(os.path.exists(XML_FILE), f'{XML_FILE} not found — run main.py first')

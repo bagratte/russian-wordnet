@@ -24,8 +24,8 @@ python3 -m unittest test.TestRuWordNetLMF.test_no_validation_errors
 The project is two files:
 
 **`main.py`** — the converter. Three sequential phases:
-1. Load all senses from ruwordnet and group by lemma (`lemma_to_senses`)
-2. Emit one `LexicalEntry` per unique lemma, with senses deduplicated by `synset_id` (the source data has ~80 duplicate `(lemma, synset_id)` pairs with different sense IDs)
+1. Load all senses from ruwordnet and group by lowercased lemma (`lemma_to_senses`) — source data is all-caps (e.g. `"МОСКВА"`), output `writtenForm` is lowercased
+2. Emit one `LexicalEntry` per unique lowercased lemma, with senses deduplicated by `synset_id` (the source data has ~80 duplicate `(lemma, synset_id)` pairs with different sense IDs)
 3. Emit one synset per ruwordnet synset, resolving ILI via `build_ili_map()` and filtering self-loop relations via the `target.id == synset.id` guard in `build_synset_relations()`
 
 **ILI resolution**: RuWordNet stores ILI as bare PWN 3.0 offset strings (e.g. `"02084071-n"`). These are **not** valid CILI IDs. `build_ili_map()` loads `omw-en:1.4` and builds a dict from that offset format → actual CILI ID (`iliXXXXXX`). Synsets without a mapping get `ili='in'` (no ILI).

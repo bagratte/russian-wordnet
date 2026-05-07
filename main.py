@@ -182,7 +182,7 @@ def build_lmf(ruwn, ili_map):
             'email': 'bagrat@stokhastik.net',
             'url': 'https://github.com/bagratte/russian-wordnet',
             'license': 'https://creativecommons.org/licenses/by/4.0/',
-            'version': '2021',
+            'version': '1.0',
             'entries': entries,
             'synsets': synsets,
         }],
@@ -195,6 +195,6 @@ print('Building ILI map from omw-en:1.4...')
 ili_map = build_ili_map()
 resource = build_lmf(ruwn, ili_map)
 
-print('Writing russian-wordnet-2021.xml...')
-lmf.dump(resource, 'russian-wordnet-2021.xml')
+print('Writing russian-wordnet-1.0.xml...')
+lmf.dump(resource, 'russian-wordnet-1.0.xml')
 print('Done.')
