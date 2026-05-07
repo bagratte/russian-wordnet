@@ -24,9 +24,11 @@ python3 -m unittest test.TestRuWordNetLMF.test_no_validation_errors
 The project is two files:
 
 **`main.py`** — the converter. Three sequential phases:
-1. Load all senses from ruwordnet and group by lowercased lemma (`lemma_to_senses`) — source data is all-caps (e.g. `"МОСКВА"`), output `writtenForm` is lowercased
-2. Emit one `LexicalEntry` per unique lowercased lemma, with senses deduplicated by `synset_id` (the source data has ~80 duplicate `(lemma, synset_id)` pairs with different sense IDs)
+1. Load all senses from ruwordnet and group by lowercased lemma (`lemma_to_senses`) — source data is all-caps (e.g. `"МОСКВА"`)
+2. Emit `LexicalEntry` elements per lemma, with senses deduplicated by `synset_id` (the source data has ~80 duplicate `(lemma, synset_id)` pairs with different sense IDs). If a lemma's senses split across proper-noun and common-noun synsets, emit one entry per distinct `writtenForm`.
 3. Emit one synset per ruwordnet synset, resolving ILI via `build_ili_map()` and filtering self-loop relations via the `target.id == synset.id` guard in `build_synset_relations()`
+
+**Proper-noun casing**: `build_ili_map()` also returns `wn_proper` — a dict from PWN offset → `'title'`|`'capitalize'`. Proper-noun status is detected from omw-en:1.4 synsets whose lemmas have an uppercase initial letter, restricted to `noun.*` lexfiles (adj/verb forms stay lowercase in Russian). `noun.person`, `noun.location`, and `noun.object` use `str.title()` (all words); all other noun lexfiles use first-letter-only capitalize. Synsets with no ILI link, or whose ILI points to a common noun, keep the lowercased form.
 
 **ILI resolution**: RuWordNet stores ILI as bare PWN 3.0 offset strings (e.g. `"02084071-n"`). These are **not** valid CILI IDs. `build_ili_map()` loads `omw-en:1.4` and builds a dict from that offset format → actual CILI ID (`iliXXXXXX`). Synsets without a mapping get `ili='in'` (no ILI).
 

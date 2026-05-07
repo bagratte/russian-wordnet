@@ -46,13 +46,20 @@ SYNSET_RELATIONS = [
 ]
 
 
+TITLE_LEXFILES = {'noun.person', 'noun.location', 'noun.object'}
+
 def build_ili_map():
     prefix = 'omw-en-'
-    return {
-        s.id[len(prefix):]: s.ili
-        for s in wn.synsets(lexicon='omw-en:1.4')
-        if s.ili
-    }
+    ili_map = {}
+    wn_proper = {}  # wn_id -> 'title' | 'capitalize'
+    for s in wn.synsets(lexicon='omw-en:1.4'):
+        wn_id = s.id[len(prefix):]
+        if s.ili:
+            ili_map[wn_id] = s.ili
+        lf = s.lexfile()
+        if lf and lf.startswith('noun.') and any(l[0].isupper() for l in s.lemmas()):
+            wn_proper[wn_id] = 'title' if lf in TITLE_LEXFILES else 'capitalize'
+    return ili_map, wn_proper
 
 
 def load_synset_bulk_data(session):
@@ -120,8 +127,15 @@ def build_synset_relations(synset_id, rel_dicts):
     return rels
 
 
-def build_lmf(ruwn, ili_map):
-    # One LexicalEntry per unique lemma; each Sense within it points at a synset
+def written_form(lemma, casing):
+    if casing == 'title':
+        return lemma.title()
+    if casing == 'capitalize':
+        return lemma[0].upper() + lemma[1:]
+    return lemma
+
+
+def build_lmf(ruwn, ili_map, wn_proper):
     all_senses = ruwn.senses
     print(f'Building entries from {len(all_senses)} senses...')
     lemma_to_senses = defaultdict(list)
@@ -131,32 +145,42 @@ def build_lmf(ruwn, ili_map):
         progress(i, len(all_senses), 'senses')
 
     all_synsets = ruwn.synsets
-    # Build synset_id -> POS lookup to avoid lazy-loading s.synset in the entries loop
     synset_pos = {s.id: POS_MAP.get(s.part_of_speech, 'n') for s in all_synsets}
 
-    entries = []
-    lemma_items = list(lemma_to_senses.items())
-    print(f'Building {len(lemma_items)} lexical entries...')
-    for i, (lemma, senses) in enumerate(lemma_items, 1):
-        pos = next(
-            (synset_pos[s.synset_id] for s in senses if s.synset_id in synset_pos),
-            'n',
-        )
-        seen_synsets = set()
-        deduped = []
-        for s in senses:
-            if s.synset_id not in seen_synsets:
-                seen_synsets.add(s.synset_id)
-                deduped.append(s)
-        entries.append({
-            'id': f'ruwn-le-{i}',
-            'lemma': {'writtenForm': lemma, 'partOfSpeech': pos},
-            'senses': [{'id': s.id, 'synset': s.synset_id} for s in deduped],
-        })
-        progress(i, len(lemma_items), 'entries')
-
-    print(f'Bulk-loading synset relations...')
+    print('Bulk-loading synset relations...')
     rel_dicts, ili_d = load_synset_bulk_data(ruwn.session)
+
+    # Senses with a proper-noun ILI get a cased writtenForm; others stay lowercase.
+    # If a lemma has both kinds, emit separate LexicalEntry elements (one per form).
+    entries = []
+    entry_idx = 0
+    lemma_items = list(lemma_to_senses.items())
+    print(f'Building lexical entries from {len(lemma_items)} lemmas...')
+    for i, (lemma, senses) in enumerate(lemma_items, 1):
+        form_senses = defaultdict(list)
+        for s in senses:
+            wn_id = ili_d.get(s.synset_id)
+            casing = wn_proper.get(wn_id) if wn_id else None
+            form_senses[written_form(lemma, casing)].append(s)
+
+        for form, group in form_senses.items():
+            entry_idx += 1
+            seen_synsets = set()
+            deduped = []
+            for s in group:
+                if s.synset_id not in seen_synsets:
+                    seen_synsets.add(s.synset_id)
+                    deduped.append(s)
+            pos = next(
+                (synset_pos[s.synset_id] for s in deduped if s.synset_id in synset_pos),
+                'n',
+            )
+            entries.append({
+                'id': f'ruwn-le-{entry_idx}',
+                'lemma': {'writtenForm': form, 'partOfSpeech': pos},
+                'senses': [{'id': s.id, 'synset': s.synset_id} for s in deduped],
+            })
+        progress(i, len(lemma_items), 'entries')
 
     print(f'Building {len(all_synsets)} synsets...')
     synsets = []
@@ -192,8 +216,8 @@ def build_lmf(ruwn, ili_map):
 print('Loading RuWordNet...')
 ruwn = ruwordnet.RuWordNet()
 print('Building ILI map from omw-en:1.4...')
-ili_map = build_ili_map()
-resource = build_lmf(ruwn, ili_map)
+ili_map, wn_proper = build_ili_map()
+resource = build_lmf(ruwn, ili_map, wn_proper)
 
 print('Writing russian-wordnet-1.0.xml...')
 lmf.dump(resource, 'russian-wordnet-1.0.xml')
