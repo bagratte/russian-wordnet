@@ -127,7 +127,7 @@ def build_lmf(ruwn, ili_map):
     lemma_to_senses = defaultdict(list)
     for i, sense in enumerate(all_senses, 1):
         if sense.lemma and sense.synset_id:
-            lemma_to_senses[sense.lemma].append(sense)
+            lemma_to_senses[sense.lemma.lower()].append(sense)
         progress(i, len(all_senses), 'senses')
 
     all_synsets = ruwn.synsets

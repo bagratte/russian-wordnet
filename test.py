@@ -50,8 +50,8 @@ class TestRuWordNetLMF(unittest.TestCase):
         seen = set()
         unique_senses = 0
         for s in ruwn.senses:
-            if s.lemma and s.synset_id and (s.lemma, s.synset_id) not in seen:
-                seen.add((s.lemma, s.synset_id))
+            if s.lemma and s.synset_id and (s.lemma.lower(), s.synset_id) not in seen:
+                seen.add((s.lemma.lower(), s.synset_id))
                 unique_senses += 1
         count = len(wn.senses())
         print(f'\n  senses (deduplicated): {count}', file=sys.stderr)
