@@ -57,7 +57,7 @@ def build_ili_map():
         if s.ili:
             ili_map[wn_id] = s.ili
         lf = s.lexfile()
-        if lf and lf.startswith('noun.') and any(l[0].isupper() for l in s.lemmas()):
+        if lf and lf.startswith('noun.') and lf != 'noun.plant' and any(l[0].isupper() for l in s.lemmas()):
             wn_proper[wn_id] = 'title' if lf in TITLE_LEXFILES else 'capitalize'
     return ili_map, wn_proper
 
@@ -206,7 +206,7 @@ def build_lmf(ruwn, ili_map, wn_proper):
             'email': 'bagrat@stokhastik.net',
             'url': 'https://github.com/bagratte/russian-wordnet',
             'license': 'https://creativecommons.org/licenses/by/4.0/',
-            'version': '0.1',
+            'version': '0.2',
             'entries': entries,
             'synsets': synsets,
         }],
@@ -219,6 +219,6 @@ print('Building ILI map from omw-en:1.4...')
 ili_map, wn_proper = build_ili_map()
 resource = build_lmf(ruwn, ili_map, wn_proper)
 
-print('Writing russian-wordnet-0.1.xml...')
-lmf.dump(resource, 'russian-wordnet-0.1.xml')
+print('Writing russian-wordnet-0.2.xml...')
+lmf.dump(resource, 'russian-wordnet-0.2.xml')
 print('Done.')
